@@ -14,7 +14,7 @@ export async function listInstances(req, res) {
 }
 
 export async function createInstance(req, res) {
-  const { id } = req.body ?? {};
+  const { id, service = 'redis', plan = 'small' } = req.body ?? {};
   if (!id || typeof id !== 'string') {
     return res.status(400).json({ error: 'id is required' });
   }
@@ -23,10 +23,11 @@ export async function createInstance(req, res) {
     return res.status(400).json({ error: 'ID must be lowercase alphanumeric + hyphens, 1–63 chars, no leading/trailing hyphens' });
   }
   try {
-    const status = await provisionInstance(id);
+    const status = await provisionInstance(id, service, plan);
     return res.status(status).json({ id });
   } catch (err) {
-    return res.status(500).json({ error: err.body?.message ?? err.message });
+    const code = err.statusCode === 400 ? 400 : 500;
+    return res.status(code).json({ error: err.body?.message ?? err.message });
   }
 }
 

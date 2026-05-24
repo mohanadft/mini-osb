@@ -7,9 +7,8 @@ const appsApi = kc.makeApiClient(AppsV1Api);
 const coreApi = kc.makeApiClient(CoreV1Api);
 
 const NAMESPACE = 'default';
-const REDIS_IMAGE = 'redis:7-alpine';
 
-function buildDeployment(instanceId) {
+function buildDeployment(instanceId, { image, port, env = [] }) {
   return {
     apiVersion: 'apps/v1',
     kind: 'Deployment',
@@ -26,9 +25,10 @@ function buildDeployment(instanceId) {
         spec: {
           containers: [
             {
-              name: 'redis',
-              image: REDIS_IMAGE,
-              ports: [{ containerPort: 6379 }],
+              name: instanceId,
+              image,
+              ports: [{ containerPort: port }],
+              env: env.map(e => ({ name: e.name, value: e.value })),
             },
           ],
         },
@@ -37,7 +37,7 @@ function buildDeployment(instanceId) {
   };
 }
 
-function buildService(instanceId) {
+function buildService(instanceId, { port }) {
   return {
     apiVersion: 'v1',
     kind: 'Service',
@@ -48,7 +48,7 @@ function buildService(instanceId) {
     },
     spec: {
       selector: { app: instanceId },
-      ports: [{ port: 6379, targetPort: 6379 }],
+      ports: [{ port, targetPort: port }],
       type: 'ClusterIP',
     },
   };
@@ -76,13 +76,13 @@ export async function getPodStatus(instanceId) {
   }
 }
 
-export async function createInstance(instanceId) {
-  await appsApi.createNamespacedDeployment({ namespace: NAMESPACE, body: buildDeployment(instanceId) });
-  await coreApi.createNamespacedService({ namespace: NAMESPACE, body: buildService(instanceId) });
+export async function createInstance(instanceId, serviceMetadata) {
+  await appsApi.createNamespacedDeployment({ namespace: NAMESPACE, body: buildDeployment(instanceId, serviceMetadata) });
+  await coreApi.createNamespacedService({ namespace: NAMESPACE, body: buildService(instanceId, serviceMetadata) });
 }
 
 export async function deleteInstance(instanceId) {
-  // Verify the resource is owned by mini-osb before deleting
+  // Verify ownership before deleting
   try {
     const dep = await appsApi.readNamespacedDeployment({ name: instanceId, namespace: NAMESPACE });
     if (dep.metadata?.labels?.['managed-by'] !== 'mini-osb') {
@@ -91,8 +91,6 @@ export async function deleteInstance(instanceId) {
       throw err;
     }
   } catch (err) {
-    // 403 = not our resource; any unexpected error → re-throw
-    // 404 = resource doesn't exist, let the delete attempt surface its own 404
     if (err.statusCode === 403) throw err;
     const status = err.response?.statusCode ?? err.statusCode;
     if (status !== 404) throw err;

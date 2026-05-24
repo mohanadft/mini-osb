@@ -2,8 +2,9 @@ import { createHmac, timingSafeEqual } from 'crypto';
 import { provisionInstance, deprovisionInstance } from './broker.js';
 import { reconcile } from './reconciler.js';
 
-const SERVICE_ID = 'redis-service-0001';
-const PLAN_ID    = 'redis-plan-small-0001';
+// Default service used for branch-based provisioning
+const DEFAULT_SERVICE = process.env.BRANCH_SERVICE ?? 'redis';
+const DEFAULT_PLAN    = process.env.BRANCH_PLAN    ?? 'small';
 
 function verifySignature(secret, rawBody, signature) {
   const expected = 'sha256=' + createHmac('sha256', secret).update(rawBody).digest('hex');
@@ -83,7 +84,7 @@ export function createWebhookHandler(secret, configPath) {
 
     console.log(`\n[webhook] Branch created: "${branch}" → provisioning "${instanceId}"`);
     try {
-      const status = await provisionInstance(instanceId, SERVICE_ID, PLAN_ID);
+      const status = await provisionInstance(instanceId, DEFAULT_SERVICE, DEFAULT_PLAN);
       const label  = status === 201 ? 'created ✓' : 'already exists, skipped';
       console.log(`[webhook] Instance "${instanceId}" ${label}`);
       return res.status(200).json({ description: `Provisioned ${instanceId}.` });

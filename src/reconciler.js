@@ -2,13 +2,14 @@ import { readFile } from 'fs/promises';
 import { load as parseYaml } from 'js-yaml';
 import { instances, provisionInstance, deprovisionInstance } from './broker.js';
 import { listManagedDeployments } from './k8s.js';
+import { lookupService } from './catalog.js';
 
-const SERVICE_ID = 'redis-service-0001';
-const PLAN_ID    = 'redis-plan-small-0001';
+const DEFAULT_SERVICE = 'redis';
+const DEFAULT_PLAN    = 'small';
 
 // Last reconcile result — surfaced via GET /api/reconcile-status
 export const reconcileStatus = {
-  lastRun:   null,   // ISO timestamp
+  lastRun:   null,
   created:   [],
   deleted:   [],
   unchanged: [],
@@ -22,12 +23,15 @@ export async function reconcile(configPath) {
 
   try {
     // ── 1. Read desired state ──────────────────────────────────────────────
-    const raw     = await readFile(configPath, 'utf8');
-    const config  = parseYaml(raw) ?? {};
+    const raw    = await readFile(configPath, 'utf8');
+    const config = parseYaml(raw) ?? {};
     const desired = new Map(
       (config.instances ?? []).map(entry => [
         entry.id,
-        { planId: entry.plan ?? 'small', serviceId: SERVICE_ID },
+        {
+          service: entry.service ?? DEFAULT_SERVICE,
+          plan:    entry.plan    ?? DEFAULT_PLAN,
+        },
       ])
     );
 
@@ -36,13 +40,19 @@ export async function reconcile(configPath) {
     const actual    = new Set(actualIds);
 
     // ── 3. Sync in-memory Map with k8s reality ─────────────────────────────
-    // Re-adopt pods that exist in k8s but were lost from memory (e.g. restart)
     for (const id of actual) {
       if (!instances.has(id)) {
+        // Re-adopt: pod exists in k8s but not in memory (broker restarted)
+        // Use desired config if available, otherwise fall back to defaults
+        const cfg = desired.get(id);
+        const svc = lookupService(cfg?.service ?? DEFAULT_SERVICE, cfg?.plan ?? DEFAULT_PLAN);
         instances.set(id, {
-          serviceId: SERVICE_ID,
-          planId: PLAN_ID,
-          createdAt: Date.now(),
+          serviceId:   svc.serviceId,
+          planId:      svc.planId,
+          serviceName: cfg?.service ?? DEFAULT_SERVICE,
+          planName:    cfg?.plan    ?? DEFAULT_PLAN,
+          port:        svc.port,
+          createdAt:   Date.now(),
         });
       }
     }
@@ -52,21 +62,22 @@ export async function reconcile(configPath) {
     }
 
     // ── 4. Diff ────────────────────────────────────────────────────────────
-    const toCreate    = [...desired.keys()].filter(id => !actual.has(id));
-    const toDelete    = [...actual].filter(id => !desired.has(id));
-    const toKeep      = [...desired.keys()].filter(id => actual.has(id));
+    const toCreate = [...desired.keys()].filter(id => !actual.has(id));
+    const toDelete = [...actual].filter(id => !desired.has(id));
+    const toKeep   = [...desired.keys()].filter(id => actual.has(id));
 
-    const created   = [];
-    const deleted   = [];
-    const errors    = [];
+    const created = [];
+    const deleted = [];
+    const errors  = [];
 
     // ── 5. Converge ────────────────────────────────────────────────────────
     await Promise.all([
       ...toCreate.map(async id => {
+        const { service, plan } = desired.get(id);
         try {
-          await provisionInstance(id, SERVICE_ID, PLAN_ID);
+          await provisionInstance(id, service, plan);
           created.push(id);
-          console.log(`[reconcile] + created  ${id}`);
+          console.log(`[reconcile] + created  ${id} (${service}/${plan})`);
         } catch (err) {
           errors.push({ id, action: 'create', error: err.body?.message ?? err.message });
           console.error(`[reconcile] ! error creating ${id}:`, err.body?.message ?? err.message);
@@ -103,10 +114,9 @@ export async function reconcile(configPath) {
     console.error('[reconcile] fatal:', error);
     Object.assign(reconcileStatus, {
       lastRun: new Date().toISOString(),
-      errors: [{ action: 'reconcile', error }],
+      errors:  [{ action: 'reconcile', error }],
       running: false,
     });
     throw err;
   }
 }
-

@@ -1,10 +1,15 @@
-# Declarative Redis instance configuration
-# Each entry provisions a Redis pod in minikube.
+# Declarative instance configuration
+# Each entry provisions a pod in minikube.
 # Add an entry → pod is created. Remove an entry → pod is deleted.
-# The broker reconciles automatically when this file is saved.
+# Push this file to main → webhook triggers a reconcile automatically.
+#
+# Available services: redis, postgres
+# Available plans:    small
 
 instances:
-   - id: my-redis
-     plan: small
-  # - id: feature-cache
-    #   plan: small
+  - id: my-redis
+    service: redis
+    plan: small
+  # - id: my-postgres
+  #   service: postgres
+  #   plan: small
