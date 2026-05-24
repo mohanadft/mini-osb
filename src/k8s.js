@@ -62,17 +62,22 @@ export async function listManagedDeployments() {
   return res.items.map(d => d.metadata.name);
 }
 
-export async function getPodStatus(instanceId) {
+export async function getPodInfo(instanceId) {
   try {
     const res = await coreApi.listNamespacedPod({
       namespace: NAMESPACE,
       labelSelector: `app=${instanceId}`,
     });
     const pod = res.items?.[0];
-    if (!pod) return 'unknown';
-    return pod.status?.phase?.toLowerCase() ?? 'unknown';
+    if (!pod) return { status: 'unknown', createdAt: null };
+    return {
+      status:    pod.status?.phase?.toLowerCase() ?? 'unknown',
+      createdAt: pod.metadata?.creationTimestamp
+        ? new Date(pod.metadata.creationTimestamp).getTime()
+        : null,
+    };
   } catch {
-    return 'unknown';
+    return { status: 'unknown', createdAt: null };
   }
 }
 

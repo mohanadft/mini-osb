@@ -1,14 +1,18 @@
 import { instances, provisionInstance, deprovisionInstance } from './broker.js';
-import { getPodStatus } from './k8s.js';
+import { getPodInfo } from './k8s.js';
 
 export async function listInstances(req, res) {
   const list = await Promise.all(
-    [...instances.entries()].map(async ([id, data]) => ({
-      id,
-      ...data,
-      podStatus: await getPodStatus(id),
-      credentials: { host: id, port: data.port, password: '' },
-    }))
+    [...instances.entries()].map(async ([id, data]) => {
+      const { status, createdAt } = await getPodInfo(id);
+      return {
+        id,
+        ...data,
+        podStatus: status,
+        createdAt: createdAt ?? data.createdAt,
+        credentials: { host: id, port: data.port, password: '' },
+      };
+    })
   );
   return res.json(list);
 }

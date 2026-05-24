@@ -53,7 +53,6 @@ export async function reconcile(configPath) {
           planName:    cfg?.plan    ?? DEFAULT_PLAN,
           port:        svc.port,
           uriScheme:   svc.uriScheme,
-          createdAt:   Date.now(),
         });
       }
     }

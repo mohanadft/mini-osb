@@ -19,7 +19,6 @@ export async function provisionInstance(instanceId, serviceName, planName) {
       planName,
       port:        svc.port,
       uriScheme:   svc.uriScheme,
-      createdAt:   Date.now(),
     });
     return 201;
   } catch (err) {
