@@ -74,6 +74,22 @@ export async function createInstance(instanceId) {
 }
 
 export async function deleteInstance(instanceId) {
+  // Verify the resource is owned by mini-osb before deleting
+  try {
+    const dep = await appsApi.readNamespacedDeployment({ name: instanceId, namespace: NAMESPACE });
+    if (dep.metadata?.labels?.['managed-by'] !== 'mini-osb') {
+      const err = new Error(`Deployment "${instanceId}" is not managed by mini-osb`);
+      err.statusCode = 403;
+      throw err;
+    }
+  } catch (err) {
+    // 403 = not our resource; any unexpected error → re-throw
+    // 404 = resource doesn't exist, let the delete attempt surface its own 404
+    if (err.statusCode === 403) throw err;
+    const status = err.response?.statusCode ?? err.statusCode;
+    if (status !== 404) throw err;
+  }
+
   await appsApi.deleteNamespacedDeployment({ name: instanceId, namespace: NAMESPACE });
   await coreApi.deleteNamespacedService({ name: instanceId, namespace: NAMESPACE });
 }

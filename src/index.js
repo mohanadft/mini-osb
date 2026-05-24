@@ -5,6 +5,7 @@ import { CATALOG } from './catalog.js';
 import { provision, bind, deprovision } from './broker.js';
 import { createWebhookHandler } from './webhook.js';
 import { listInstances, createInstance, removeInstance } from './api.js';
+import { requireToken } from './middleware.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -18,7 +19,12 @@ app.use(express.json({
 // Static dashboard
 app.use(express.static(join(__dirname, '../public')));
 
-// Dashboard REST API (no OSB header required)
+// Dashboard REST API (no OSB header required, but token-protected)
+const dashToken = process.env.DASHBOARD_TOKEN;
+if (!dashToken) {
+  console.warn('WARNING: DASHBOARD_TOKEN not set — /api/* endpoints are unauthenticated');
+}
+app.use('/api', requireToken(dashToken));
 app.get('/api/instances', listInstances);
 app.post('/api/instances', createInstance);
 app.delete('/api/instances/:id', removeInstance);
