@@ -1,13 +1,13 @@
 # mini-osb
 
-Minimal [Open Service Broker](https://www.openservicebrokerapi.org/) that provisions Redis pods inside a local minikube cluster.
+A minimal [Open Service Broker](https://www.openservicebrokerapi.org/) that provisions real service pods inside a local minikube cluster.
 
 Two provisioning modes work side by side:
 
 - **Declarative (GitOps)** — edit `instances.yaml`, commit, push to `main`. The broker reconciles automatically via GitHub webhook.
-- **Branch-based** — push a feature branch → Redis pod appears. Delete the branch → pod disappears.
+- **Branch-based** — push a feature branch → pod appears. Delete the branch → pod disappears.
 
-A dashboard at `http://localhost:3000` shows all running instances in real time.
+A live dashboard at `http://localhost:3000` shows all running instances, their real pod status, connection credentials, and reconcile history.
 
 ---
 
@@ -31,8 +31,10 @@ npm install
 
 | Variable | Required | Description |
 |---|---|---|
-| `WEBHOOK_SECRET` | For webhook | GitHub signs payloads with this — must match what you set in GitHub |
+| `WEBHOOK_SECRET` | For webhook | GitHub signs every payload with this — must match what you set in GitHub settings |
 | `DASHBOARD_TOKEN` | Recommended | Bearer token required to call `/api/*` and use the dashboard |
+| `BRANCH_SERVICE` | No | Service to provision on branch push (default: `redis`) |
+| `BRANCH_PLAN` | No | Plan to use for branch provisioning (default: `small`) |
 
 ### Start the broker
 
@@ -41,21 +43,36 @@ WEBHOOK_SECRET="your-secret" DASHBOARD_TOKEN="your-token" npm start
 ```
 
 On startup the broker:
-1. Reconciles `instances.yaml` against the running Kubernetes state
-2. Re-adopts any pods that survived a restart
-3. Starts listening on port `3000`
+1. Reconciles `instances.yaml` against live Kubernetes state
+2. Re-adopts any pods that survived a restart (preserving their real creation time)
+3. Watches for incoming webhook events
+
+---
+
+## Services
+
+The catalog is defined in `src/catalog.js`. Two services are available out of the box:
+
+| Service | Image | Port | URI scheme |
+|---|---|---|---|
+| `redis` | `redis:7-alpine` | 6379 | `redis://` |
+| `postgres` | `postgres:16-alpine` | 5432 | `postgresql://` |
+
+To add a new service, add an entry to the `services` array in `src/catalog.js` with `image`, `port`, `uriScheme`, and any `env` vars. No other file needs to change.
 
 ---
 
 ## Declarative provisioning (GitOps)
 
-`instances.yaml` at the repo root is the source of truth. Declare what you want to exist:
+`instances.yaml` at the repo root is the source of truth. Declare what you want:
 
 ```yaml
 instances:
   - id: my-redis
+    service: redis
     plan: small
-  - id: feature-cache
+  - id: my-postgres
+    service: postgres
     plan: small
 ```
 
@@ -63,7 +80,7 @@ Commit and push to `main` — the webhook triggers a reconcile and the broker co
 
 ### Reconcile triggers
 
-| Trigger | How |
+| Trigger | When |
 |---|---|
 | Startup | Always runs on boot |
 | Push `instances.yaml` to `main` | GitHub webhook triggers reconcile automatically |
@@ -73,7 +90,7 @@ Commit and push to `main` — the webhook triggers a reconcile and the broker co
 
 ## Branch-based provisioning
 
-Push a branch → Redis pod named after the branch. Delete the branch → pod removed.
+Push a branch → pod named after the branch. Delete the branch → pod removed.
 
 ```bash
 # Pod appears
@@ -86,7 +103,7 @@ git push origin --delete feature/my-thing
 
 Branch names are sanitized to Kubernetes-safe IDs: lowercased, non-alphanumeric characters replaced with hyphens, truncated to 63 chars. `feature/my-thing` → `feature-my-thing`.
 
-Only branch **creation** and **deletion** trigger provisioning — subsequent pushes to an existing branch are ignored.
+Only branch **creation** and **deletion** trigger provisioning — subsequent pushes to an existing branch are ignored, and merges to `main` are handled by the reconciler instead.
 
 ---
 
@@ -111,27 +128,26 @@ Go to your repo → **Settings → Webhooks → Add webhook**:
 | Secret | your `WEBHOOK_SECRET` value |
 | Events | **Just the push event** |
 
-Click **Add webhook**. GitHub sends a ping — you'll see it arrive in the broker logs (ignored, that's expected).
-
-> **Note:** ngrok's free tier rotates the URL on restart. If deliveries start failing, grab the new URL and update the webhook in GitHub settings. You can redeliver failed payloads from **Settings → Webhooks → Recent Deliveries** without pushing again.
+> **Note:** ngrok's free tier rotates the URL on restart. If deliveries start failing, update the webhook URL in GitHub settings. You can redeliver failed payloads from **Settings → Webhooks → Recent Deliveries** without pushing again.
 
 ---
 
 ## Dashboard
 
-Open `http://localhost:3000` in your browser.
+Open `http://localhost:3000`. The dashboard requires `DASHBOARD_TOKEN` — it will prompt on first load and store the token in `localStorage`.
 
-- **Instance cards** — live pod status (Running/Pending/Failed), click any value to copy it
-- **Reconcile bar** — shows last reconcile time, how many pods were created/deleted/unchanged
-- **Reconcile now** — triggers an immediate reconcile against `instances.yaml`
-- **New instance** — provision manually without touching the config file
-- **Delete** — two-click confirmation before removing a pod
-
-The dashboard requires the `DASHBOARD_TOKEN` — it will prompt for it on first load and store it in `localStorage`.
+| Feature | Details |
+|---|---|
+| Instance cards | Live pod status (Running / Pending / Failed), real creation time from Kubernetes |
+| Credentials | Click host, port, or URI to copy to clipboard |
+| Reconcile bar | Last reconcile time, pods created / deleted / unchanged |
+| Reconcile now | Triggers an immediate reconcile against `instances.yaml` |
+| New instance | Provision manually with a chosen service and plan |
+| Delete | Two-click confirmation before removing a pod |
 
 ---
 
-## OSB API endpoints
+## OSB API
 
 All requests require the `X-Broker-Api-Version` header.
 
@@ -190,9 +206,9 @@ curl -s -X DELETE \
 mini-osb/
   src/
     index.js       — Express app, routes, startup reconcile
-    catalog.js     — hardcoded service catalog
+    catalog.js     — service catalog + lookupService() helper
     broker.js      — provision / bind / deprovision (core logic + OSB HTTP handlers)
-    k8s.js         — Kubernetes client, Deployment/Service builders, pod status
+    k8s.js         — Kubernetes client, Deployment/Service builders, pod info
     reconciler.js  — declarative reconcile loop (diff desired vs actual)
     webhook.js     — GitHub webhook handler, HMAC signature verification
     api.js         — dashboard REST API (/api/instances, /api/reconcile)
@@ -206,6 +222,6 @@ mini-osb/
 
 ## Notes
 
-- State is kept in memory — restarting the broker re-adopts running pods via the startup reconcile.
-- The reconciler targets the `default` namespace and identifies its own resources via the `managed-by=mini-osb` label. It will not delete resources it did not create.
+- State is kept in memory — restarting the broker re-adopts running pods via the startup reconcile. Pod age is read from `metadata.creationTimestamp` so it never resets.
+- The reconciler only manages resources it created — identified by the `managed-by=mini-osb` label. It will not touch unrelated Kubernetes resources.
 - Change `NAMESPACE` in `src/k8s.js` to deploy into a different namespace.
