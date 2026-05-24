@@ -6,5 +6,5 @@
 instances:
    - id: my-redis
      plan: small
-  # - id: feature-cache
-  #   plan: small
+   - id: feature-cache
+     plan: small
