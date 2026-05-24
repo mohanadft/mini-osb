@@ -30,12 +30,20 @@ export async function createInstance(req, res) {
   }
 }
 
+const K8S_NAME_RE = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/;
+
 export async function removeInstance(req, res) {
   const { id } = req.params;
+  if (!K8S_NAME_RE.test(id)) {
+    return res.status(400).json({ error: 'Invalid instance ID' });
+  }
   try {
     const status = await deprovisionInstance(id);
     return res.status(status).json({});
   } catch (err) {
+    if (err.statusCode === 403) {
+      return res.status(403).json({ error: err.message });
+    }
     return res.status(500).json({ error: err.body?.message ?? err.message });
   }
 }
