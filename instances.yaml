@@ -7,9 +7,9 @@
 # Available plans:    small
 
 instances:
-  - id: my-redis
-    service: redis
-    plan: small
-  - id: my-postgres
-    service: postgres
-    plan: small
+  # - id: my-redis
+  #   service: redis
+  #   plan: small
+  # - id: my-postgres
+  #   service: postgres
+  #   plan: small
