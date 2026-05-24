@@ -502,7 +502,8 @@
 
     const cards = list.map(inst => {
       const bc   = badgeClass(inst.podStatus);
-      const conn = `redis://${inst.credentials.host}:${inst.credentials.port}`;
+      const scheme = inst.uriScheme ?? 'redis';
+      const conn = `${scheme}://${inst.credentials.host}:${inst.credentials.port}`;
       const ago  = timeAgo(inst.createdAt);
       return `
         <div class="instance-card">

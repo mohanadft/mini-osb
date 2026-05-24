@@ -6,8 +6,9 @@ export const CATALOG = {
       description: 'Redis in-memory data store provisioned as a Kubernetes pod.',
       bindable: true,
       metadata: {
-        image: 'redis:7-alpine',
-        port: 6379,
+        image:     'redis:7-alpine',
+        port:      6379,
+        uriScheme: 'redis',
       },
       plans: [
         {
@@ -24,8 +25,9 @@ export const CATALOG = {
       description: 'PostgreSQL relational database provisioned as a Kubernetes pod.',
       bindable: true,
       metadata: {
-        image: 'postgres:16-alpine',
-        port: 5432,
+        image:     'postgres:16-alpine',
+        port:      5432,
+        uriScheme: 'postgresql',
         env: [
           { name: 'POSTGRES_PASSWORD', value: 'password' },
           { name: 'POSTGRES_DB',       value: 'app' },
@@ -60,6 +62,7 @@ export function lookupService(serviceName, planName) {
     planId:    plan.id,
     image:     service.metadata.image,
     port:      service.metadata.port,
+    uriScheme: service.metadata.uriScheme,
     env:       service.metadata.env ?? [],
   };
 }

@@ -7,7 +7,7 @@ export async function listInstances(req, res) {
       id,
       ...data,
       podStatus: await getPodStatus(id),
-      credentials: { host: id, port: 6379, password: '' },
+      credentials: { host: id, port: data.port, password: '' },
     }))
   );
   return res.json(list);
