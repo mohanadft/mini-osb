@@ -54,6 +54,14 @@ function buildService(instanceId) {
   };
 }
 
+export async function listManagedDeployments() {
+  const res = await appsApi.listNamespacedDeployment({
+    namespace: NAMESPACE,
+    labelSelector: 'managed-by=mini-osb',
+  });
+  return res.items.map(d => d.metadata.name);
+}
+
 export async function getPodStatus(instanceId) {
   try {
     const res = await coreApi.listNamespacedPod({

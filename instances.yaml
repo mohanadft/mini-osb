@@ -1,0 +1,10 @@
+# Declarative Redis instance configuration
+# Each entry provisions a Redis pod in minikube.
+# Add an entry → pod is created. Remove an entry → pod is deleted.
+# The broker reconciles automatically when this file is saved.
+
+instances:
+  # - id: my-redis
+  #   plan: small
+  # - id: feature-cache
+  #   plan: small

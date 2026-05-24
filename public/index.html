@@ -98,6 +98,26 @@
     }
     .btn-ghost:hover { border-color: var(--border-hi); color: var(--text); }
 
+    /* ── RECONCILE BAR ───────────────────────────── */
+    .reconcile-bar {
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      padding: 8px 28px; display: flex; align-items: center;
+      gap: 10px; flex-wrap: wrap; font-family: var(--mono); font-size: 11px;
+    }
+    .reconcile-label { color: var(--subtle); letter-spacing: .06em; text-transform: uppercase; }
+    .reconcile-info  { color: var(--muted); flex: 1; }
+    .reconcile-info .hi { color: var(--text); }
+    .reconcile-info .ok  { color: var(--green); }
+    .reconcile-info .err { color: var(--red); }
+    .btn-reconcile {
+      background: transparent; border: 1px solid var(--border);
+      color: var(--muted); font-family: var(--mono); font-size: 10px;
+      padding: 4px 10px; border-radius: 4px; cursor: pointer;
+      transition: all .15s; letter-spacing: .04em;
+    }
+    .btn-reconcile:hover { border-color: var(--orange); color: var(--orange); }
+    .btn-reconcile:disabled { opacity: .4; cursor: default; }
+
     /* ── PROVISION DRAWER ────────────────────────── */
     .drawer {
       overflow: hidden;
@@ -324,6 +344,12 @@
     <div id="token-error" style="font-family:var(--mono);font-size:11px;color:var(--red);min-height:14px;"></div>
     <button type="submit" class="btn btn-primary" style="align-self:flex-start;">Unlock</button>
   </form>
+</div>
+
+<div class="reconcile-bar">
+  <span class="reconcile-label">reconciler</span>
+  <span class="reconcile-info" id="reconcile-info">—</span>
+  <button class="btn-reconcile" id="btn-reconcile" onclick="triggerReconcile()">reconcile now</button>
 </div>
 
 <div class="refresh-bar" id="refresh-bar"></div>
@@ -592,15 +618,47 @@
     }));
   }
 
+  /* ── Reconcile ──────────────────────────────── */
+  async function fetchReconcileStatus() {
+    try {
+      const res = await apiFetch('/api/reconcile-status');
+      if (!res?.ok) return;
+      const s = await res.json();
+      const el = document.getElementById('reconcile-info');
+      if (!s.lastRun) { el.innerHTML = '<span>not run yet</span>'; return; }
+      const ago  = timeAgo(new Date(s.lastRun).getTime());
+      const parts = [];
+      if (s.created.length)   parts.push(`<span class="ok">+${s.created.length} created</span>`);
+      if (s.deleted.length)   parts.push(`<span class="err">-${s.deleted.length} deleted</span>`);
+      if (s.unchanged.length) parts.push(`<span>${s.unchanged.length} unchanged</span>`);
+      if (s.errors.length)    parts.push(`<span class="err">${s.errors.length} error${s.errors.length > 1 ? 's' : ''}</span>`);
+      const summary = parts.length ? parts.join(' · ') : '<span class="ok">clean</span>';
+      el.innerHTML = `<span class="hi">${ago}</span> — ${summary}`;
+    } catch { /* ignore */ }
+  }
+
+  async function triggerReconcile() {
+    const btn = document.getElementById('btn-reconcile');
+    btn.textContent = 'reconciling…';
+    btn.disabled = true;
+    try {
+      await apiFetch('/api/reconcile', { method: 'POST' });
+      await Promise.all([poll(), fetchReconcileStatus()]);
+    } finally {
+      btn.textContent = 'reconcile now';
+      btn.disabled = false;
+    }
+  }
+
   // Check auth on load, prompt if needed
   fetch('/api/instances', { headers: authHeaders() }).then(res => {
     if (res.status === 401) { showTokenPrompt(() => poll()); }
-    else { poll(); setInterval(() => { tickRefreshBar(); poll(); }, 3000); }
+    else { poll(); fetchReconcileStatus(); setInterval(() => { tickRefreshBar(); poll(); fetchReconcileStatus(); }, 3000); }
   });
 
   // Start polling after successful token entry
   document.getElementById('token-form').addEventListener('submit', () => {
-    setTimeout(() => setInterval(() => { tickRefreshBar(); poll(); }, 3000), 100);
+    setTimeout(() => setInterval(() => { tickRefreshBar(); poll(); fetchReconcileStatus(); }, 3000), 100);
   });
 </script>
 </body>
