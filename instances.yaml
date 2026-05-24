@@ -4,7 +4,7 @@
 # The broker reconciles automatically when this file is saved.
 
 instances:
-  # - id: my-redis
-  #   plan: small
+   - id: my-redis
+     plan: small
   # - id: feature-cache
   #   plan: small
