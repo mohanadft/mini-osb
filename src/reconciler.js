@@ -1,5 +1,4 @@
 import { readFile } from 'fs/promises';
-import { watch } from 'fs';
 import { load as parseYaml } from 'js-yaml';
 import { instances, provisionInstance, deprovisionInstance } from './broker.js';
 import { listManagedDeployments } from './k8s.js';
@@ -111,15 +110,3 @@ export async function reconcile(configPath) {
   }
 }
 
-// Watch instances.yaml and reconcile on change (debounced)
-export function watchConfig(configPath) {
-  let debounce;
-  watch(configPath, () => {
-    clearTimeout(debounce);
-    debounce = setTimeout(() => {
-      console.log(`[reconcile] config changed — reconciling...`);
-      reconcile(configPath).catch(() => {});
-    }, 300);
-  });
-  console.log(`Watching ${configPath} for changes`);
-}

@@ -6,7 +6,7 @@ import { provision, bind, deprovision } from './broker.js';
 import { createWebhookHandler } from './webhook.js';
 import { listInstances, createInstance, removeInstance } from './api.js';
 import { requireToken } from './middleware.js';
-import { reconcile, watchConfig, reconcileStatus } from './reconciler.js';
+import { reconcile, reconcileStatus } from './reconciler.js';
 
 const __dirname  = dirname(fileURLToPath(import.meta.url));
 const CONFIG     = join(__dirname, '../instances.yaml');
@@ -71,6 +71,4 @@ app.listen(PORT, async () => {
   console.log('[reconcile] startup reconcile...');
   await reconcile(CONFIG).catch(err => console.error('[reconcile] startup failed:', err.message));
 
-  // Watch instances.yaml for changes
-  watchConfig(CONFIG);
 });
