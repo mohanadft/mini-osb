@@ -1,16 +1,29 @@
 import express from 'express';
+import { fileURLToPath } from 'url';
+import { join, dirname } from 'path';
 import { CATALOG } from './catalog.js';
 import { provision, bind, deprovision } from './broker.js';
 import { createWebhookHandler } from './webhook.js';
+import { listInstances, createInstance, removeInstance } from './api.js';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const app = express();
 
-// Capture raw body for webhook signature verification before JSON parsing
 app.use(express.json({
+  limit: '5mb',
   verify: (req, _res, buf) => { req.rawBody = buf; },
 }));
 
-// GitHub webhook — no OSB header required
+// Static dashboard
+app.use(express.static(join(__dirname, '../public')));
+
+// Dashboard REST API (no OSB header required)
+app.get('/api/instances', listInstances);
+app.post('/api/instances', createInstance);
+app.delete('/api/instances/:id', removeInstance);
+
+// GitHub webhook
 const webhookSecret = process.env.WEBHOOK_SECRET;
 if (webhookSecret) {
   app.post('/webhook', createWebhookHandler(webhookSecret));
@@ -19,7 +32,7 @@ if (webhookSecret) {
   console.warn('WEBHOOK_SECRET not set — /webhook endpoint disabled');
 }
 
-// OSB requires this header on every request
+// OSB header guard
 app.use((req, res, next) => {
   if (!req.headers['x-broker-api-version']) {
     return res.status(412).json({ description: 'Missing X-Broker-Api-Version header.' });
@@ -33,4 +46,7 @@ app.put('/v2/service_instances/:instance_id/service_bindings/:binding_id', bind)
 app.delete('/v2/service_instances/:instance_id', deprovision);
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`mini-osb listening on port ${PORT}`));
+app.listen(PORT, () => {
+  console.log(`mini-osb listening on port ${PORT}`);
+  console.log(`Dashboard → http://localhost:${PORT}`);
+});

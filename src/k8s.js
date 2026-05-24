@@ -54,6 +54,20 @@ function buildService(instanceId) {
   };
 }
 
+export async function getPodStatus(instanceId) {
+  try {
+    const res = await coreApi.listNamespacedPod({
+      namespace: NAMESPACE,
+      labelSelector: `app=${instanceId}`,
+    });
+    const pod = res.items?.[0];
+    if (!pod) return 'unknown';
+    return pod.status?.phase?.toLowerCase() ?? 'unknown';
+  } catch {
+    return 'unknown';
+  }
+}
+
 export async function createInstance(instanceId) {
   await appsApi.createNamespacedDeployment({ namespace: NAMESPACE, body: buildDeployment(instanceId) });
   await coreApi.createNamespacedService({ namespace: NAMESPACE, body: buildService(instanceId) });

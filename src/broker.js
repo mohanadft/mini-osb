@@ -12,12 +12,12 @@ export async function provisionInstance(instanceId, serviceId = SERVICE_ID, plan
 
   try {
     await createInstance(instanceId);
-    instances.set(instanceId, { serviceId, planId });
+    instances.set(instanceId, { serviceId, planId, createdAt: Date.now() });
     return 201;
   } catch (err) {
     // Kubernetes 409 = resources already exist (broker restarted and lost memory)
     if (err.response?.statusCode === 409 || err.statusCode === 409) {
-      instances.set(instanceId, { serviceId, planId });
+      instances.set(instanceId, { serviceId, planId, createdAt: Date.now() });
       return 200;
     }
     throw err;

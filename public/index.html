@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>mini-osb</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Mono:ital@0;1&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:            #09090b;
+      --surface:       #111114;
+      --surface-hover: #16161a;
+      --border:        #1f1f23;
+      --border-hi:     #2a2a30;
+      --text:          #f4f4f5;
+      --muted:         #71717a;
+      --subtle:        #3f3f46;
+      --orange:        #f97316;
+      --orange-bg:     rgba(249,115,22,.1);
+      --green:         #22c55e;
+      --green-bg:      rgba(34,197,94,.1);
+      --yellow:        #eab308;
+      --yellow-bg:     rgba(234,179,8,.1);
+      --red:           #ef4444;
+      --red-bg:        rgba(239,68,68,.1);
+      --mono: 'Instrument Mono', monospace;
+      --sans: 'Instrument Sans', sans-serif;
+      --r:    6px;
+    }
+
+    html { height: 100%; }
+
+    body {
+      background: var(--bg);
+      background-image:
+        radial-gradient(ellipse 80% 50% at 50% -10%, rgba(249,115,22,.06) 0%, transparent 60%),
+        radial-gradient(circle, #1f1f23 1px, transparent 1px);
+      background-size: 100% 100%, 28px 28px;
+      color: var(--text);
+      font-family: var(--sans);
+      min-height: 100%;
+    }
+
+    /* ── HEADER ─────────────────────────────────── */
+    header {
+      position: sticky; top: 0; z-index: 50;
+      height: 54px;
+      background: rgba(9,9,11,.8);
+      backdrop-filter: blur(16px) saturate(180%);
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center;
+      justify-content: space-between;
+      padding: 0 28px; gap: 16px;
+    }
+
+    .logo {
+      display: flex; align-items: center; gap: 10px;
+      font-family: var(--mono); font-size: 13px; color: var(--text);
+      text-decoration: none; letter-spacing: -.02em;
+    }
+    .logo-icon {
+      width: 22px; height: 22px;
+      background: var(--orange);
+      border-radius: 5px;
+      display: grid; place-items: center;
+      font-size: 11px; font-weight: 700;
+      color: #000; font-family: var(--sans);
+      flex-shrink: 0;
+    }
+    .logo-sep { color: var(--subtle); margin: 0 2px; }
+    .logo-sub { color: var(--muted); }
+
+    .header-right { display: flex; align-items: center; gap: 10px; }
+
+    .stat-chip {
+      display: flex; align-items: center; gap: 5px;
+      font-family: var(--mono); font-size: 11px; color: var(--muted);
+      padding: 4px 11px; border-radius: 99px;
+      background: var(--surface); border: 1px solid var(--border);
+    }
+    .stat-chip strong { color: var(--text); }
+
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-family: var(--sans); font-size: 13px; font-weight: 600;
+      border-radius: var(--r); padding: 7px 15px; cursor: pointer;
+      border: none; transition: opacity .15s, background .15s;
+      white-space: nowrap;
+    }
+    .btn-primary { background: var(--orange); color: #000; }
+    .btn-primary:hover { opacity: .85; }
+    .btn-ghost {
+      background: transparent; color: var(--muted);
+      border: 1px solid var(--border);
+    }
+    .btn-ghost:hover { border-color: var(--border-hi); color: var(--text); }
+
+    /* ── PROVISION DRAWER ────────────────────────── */
+    .drawer {
+      overflow: hidden;
+      max-height: 0;
+      transition: max-height .28s cubic-bezier(.4,0,.2,1);
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+    }
+    .drawer.open { max-height: 130px; }
+
+    .drawer-inner {
+      padding: 18px 28px 14px;
+      display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap;
+    }
+
+    .field { display: flex; flex-direction: column; gap: 6px; flex: 1; max-width: 380px; }
+    .field-label {
+      font-family: var(--mono); font-size: 10px; letter-spacing: .09em;
+      text-transform: uppercase; color: var(--muted);
+    }
+    .field-input {
+      background: var(--bg); color: var(--text);
+      font-family: var(--mono); font-size: 13px;
+      border: 1px solid var(--border-hi); border-radius: var(--r);
+      padding: 8px 12px; outline: none;
+      transition: border-color .15s;
+      width: 100%;
+    }
+    .field-input:focus { border-color: var(--orange); }
+    .field-input::placeholder { color: var(--subtle); }
+
+    .form-hint {
+      padding: 0 28px 14px;
+      font-family: var(--mono); font-size: 11px;
+    }
+    .form-hint.error { color: var(--red); }
+    .form-hint.ok    { color: var(--green); }
+
+    /* ── REFRESH BAR ─────────────────────────────── */
+    .refresh-bar {
+      height: 1px; background: var(--orange); width: 0;
+      opacity: 0; transition: opacity .2s;
+    }
+    .refresh-bar.running { opacity: .7; transition: width 3s linear, opacity .2s; width: 100%; }
+
+    /* ── MAIN ────────────────────────────────────── */
+    main { max-width: 860px; margin: 0 auto; padding: 36px 28px 80px; }
+
+    .section-title {
+      font-family: var(--mono); font-size: 10px; letter-spacing: .1em;
+      text-transform: uppercase; color: var(--subtle); margin-bottom: 14px;
+    }
+
+    /* ── EMPTY ───────────────────────────────────── */
+    .empty {
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; gap: 10px; padding: 100px 24px;
+      text-align: center;
+    }
+    .empty-icon {
+      width: 40px; height: 40px; border-radius: 10px;
+      background: var(--surface); border: 1px solid var(--border);
+      display: grid; place-items: center; font-size: 18px; margin-bottom: 6px;
+    }
+    .empty-title { font-family: var(--mono); font-size: 13px; color: var(--muted); }
+    .empty-sub { font-size: 12px; color: var(--subtle); max-width: 320px; line-height: 1.6; }
+
+    /* ── INSTANCE CARDS ──────────────────────────── */
+    .instance-list { display: flex; flex-direction: column; gap: 8px; }
+
+    .instance-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      padding: 18px 20px;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px 20px;
+      align-items: center;
+      transition: border-color .15s, background .15s;
+      animation: fadeSlide .22s ease both;
+    }
+    @keyframes fadeSlide {
+      from { opacity: 0; transform: translateY(-5px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .instance-card:hover {
+      border-color: var(--border-hi);
+      background: var(--surface-hover);
+    }
+
+    .card-top {
+      display: flex; align-items: center; gap: 10px;
+      margin-bottom: 10px;
+    }
+    .card-id {
+      font-family: var(--mono); font-size: 14px; color: var(--text);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+
+    /* status badge */
+    .badge {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-family: var(--mono); font-size: 10px; font-weight: 500;
+      letter-spacing: .06em; text-transform: uppercase;
+      padding: 2px 8px; border-radius: 99px; flex-shrink: 0;
+    }
+    .badge-dot {
+      width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+    }
+    .badge-running  { background: var(--green-bg);  color: var(--green); }
+    .badge-running .badge-dot {
+      background: var(--green);
+      animation: pulse-dot 2s ease infinite;
+      box-shadow: 0 0 0 0 rgba(34,197,94,.5);
+    }
+    @keyframes pulse-dot {
+      0%  { box-shadow: 0 0 0 0 rgba(34,197,94,.5); }
+      60% { box-shadow: 0 0 0 5px rgba(34,197,94,0); }
+      100%{ box-shadow: 0 0 0 0 rgba(34,197,94,0); }
+    }
+    .badge-pending  { background: var(--yellow-bg); color: var(--yellow); }
+    .badge-pending .badge-dot { background: var(--yellow); }
+    .badge-failed   { background: var(--red-bg);    color: var(--red); }
+    .badge-failed .badge-dot  { background: var(--red); }
+    .badge-unknown  { background: var(--surface);   color: var(--subtle); border: 1px solid var(--border); }
+    .badge-unknown .badge-dot { background: var(--subtle); }
+
+    .plan-tag {
+      font-family: var(--mono); font-size: 9px; letter-spacing: .1em;
+      text-transform: uppercase; color: var(--subtle);
+      border: 1px solid var(--border); padding: 1px 6px; border-radius: 4px;
+    }
+
+    /* credential row */
+    .card-creds {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px;
+    }
+    .cred-item {
+      display: flex; align-items: center; gap: 6px;
+      font-family: var(--mono); font-size: 11px;
+    }
+    .cred-label { color: var(--subtle); }
+    .cred-value {
+      color: var(--muted); background: var(--bg);
+      border: 1px solid var(--border); padding: 2px 7px;
+      border-radius: 4px; cursor: pointer;
+      transition: color .12s, border-color .12s;
+    }
+    .cred-value:hover { color: var(--orange); border-color: var(--orange); }
+    .cred-value.copied { color: var(--green); border-color: var(--green); }
+
+    .card-time { font-family: var(--mono); font-size: 10px; color: var(--subtle); }
+
+    /* delete button */
+    .btn-del {
+      background: transparent; color: var(--muted);
+      border: 1px solid var(--border); border-radius: var(--r);
+      font-family: var(--mono); font-size: 11px; padding: 6px 12px;
+      cursor: pointer; transition: all .15s; white-space: nowrap;
+    }
+    .btn-del:hover, .btn-del.armed {
+      background: var(--red-bg); color: var(--red); border-color: var(--red);
+    }
+
+    /* ── LOADING ─────────────────────────────────── */
+    .loading {
+      display: flex; align-items: center; justify-content: center;
+      gap: 10px; padding: 100px; color: var(--muted);
+      font-family: var(--mono); font-size: 12px;
+    }
+    .spinner {
+      width: 14px; height: 14px; border-radius: 50%;
+      border: 2px solid var(--border); border-top-color: var(--orange);
+      animation: spin .65s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+<header>
+  <a class="logo" href="/">
+    <span class="logo-icon">▲</span>
+    mini-osb
+    <span class="logo-sep">/</span>
+    <span class="logo-sub">redis</span>
+  </a>
+  <div class="header-right">
+    <div class="stat-chip" id="stat-chip">
+      <strong id="stat-count">—</strong>&nbsp;running
+    </div>
+    <button class="btn btn-primary" id="btn-new" onclick="toggleDrawer()">
+      <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
+        <path d="M5.5 1v9M1 5.5h9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+      New instance
+    </button>
+  </div>
+</header>
+
+<div class="drawer" id="drawer">
+  <div class="drawer-inner">
+    <div class="field">
+      <div class="field-label">Instance ID</div>
+      <input class="field-input" id="new-id" type="text"
+             placeholder="e.g. my-cache, feature-auth"
+             autocomplete="off" spellcheck="false"
+             oninput="clearHint()"
+             onkeydown="if(event.key==='Enter') submitNew()" />
+    </div>
+    <button class="btn btn-primary" id="btn-submit" onclick="submitNew()">Provision</button>
+    <button class="btn btn-ghost" onclick="closeDrawer()">Cancel</button>
+  </div>
+  <div class="form-hint" id="form-hint"></div>
+</div>
+
+<div class="refresh-bar" id="refresh-bar"></div>
+
+<main>
+  <div id="content">
+    <div class="loading"><span class="spinner"></span>loading...</div>
+  </div>
+</main>
+
+<script>
+  let instances = [];
+  let armTimers = {};
+  let drawerOpen = false;
+
+  /* ── Drawer ─────────────────────────────────── */
+  function toggleDrawer() {
+    drawerOpen ? closeDrawer() : openDrawer();
+  }
+  function openDrawer() {
+    drawerOpen = true;
+    document.getElementById('drawer').classList.add('open');
+    document.getElementById('btn-new').textContent = '✕ cancel';
+    setTimeout(() => document.getElementById('new-id').focus(), 60);
+  }
+  function closeDrawer() {
+    drawerOpen = false;
+    document.getElementById('drawer').classList.remove('open');
+    document.getElementById('btn-new').innerHTML = `
+      <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
+        <path d="M5.5 1v9M1 5.5h9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      </svg> New instance`;
+    clearHint();
+  }
+  function setHint(msg, type) {
+    const el = document.getElementById('form-hint');
+    el.textContent = msg;
+    el.className = `form-hint ${type}`;
+  }
+  function clearHint() {
+    const el = document.getElementById('form-hint');
+    el.textContent = '';
+    el.className = 'form-hint';
+  }
+
+  /* ── Provision ──────────────────────────────── */
+  async function submitNew() {
+    const raw = document.getElementById('new-id').value.trim();
+    const id  = raw.toLowerCase();
+    if (!id) { setHint('Instance ID is required.', 'error'); return; }
+    if (!/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/.test(id)) {
+      setHint('Lowercase letters, numbers, hyphens only. No leading/trailing hyphens.', 'error');
+      return;
+    }
+
+    const btn = document.getElementById('btn-submit');
+    btn.textContent = 'Provisioning…';
+    btn.disabled = true;
+
+    try {
+      const res  = await fetch('/api/instances', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setHint(data.error ?? 'Provision failed.', 'error'); return; }
+      setHint(`${id} provisioned.`, 'ok');
+      document.getElementById('new-id').value = '';
+      await poll();
+      setTimeout(closeDrawer, 800);
+    } catch {
+      setHint('Network error.', 'error');
+    } finally {
+      btn.textContent = 'Provision';
+      btn.disabled = false;
+    }
+  }
+
+  /* ── Delete (two-click confirm) ─────────────── */
+  async function confirmDelete(id) {
+    const btn = document.getElementById(`del-${CSS.escape(id)}`);
+    if (!btn) return;
+
+    if (!armTimers[id]) {
+      btn.textContent = 'confirm?';
+      btn.classList.add('armed');
+      armTimers[id] = setTimeout(() => {
+        btn.textContent = 'delete';
+        btn.classList.remove('armed');
+        delete armTimers[id];
+      }, 3000);
+      return;
+    }
+
+    clearTimeout(armTimers[id]);
+    delete armTimers[id];
+    btn.textContent = 'deleting…';
+    btn.disabled = true;
+
+    try {
+      await fetch(`/api/instances/${encodeURIComponent(id)}`, { method: 'DELETE' });
+      await poll();
+    } catch {
+      btn.textContent = 'delete';
+      btn.disabled = false;
+    }
+  }
+
+  /* ── Copy to clipboard ──────────────────────── */
+  function copyValue(el, val) {
+    navigator.clipboard?.writeText(val).then(() => {
+      const orig = el.textContent;
+      el.textContent = 'copied!';
+      el.classList.add('copied');
+      setTimeout(() => { el.textContent = orig; el.classList.remove('copied'); }, 1100);
+    });
+  }
+
+  /* ── Render ─────────────────────────────────── */
+  function timeAgo(ts) {
+    if (!ts) return '';
+    const s = Math.floor((Date.now() - ts) / 1000);
+    if (s < 60)   return `${s}s ago`;
+    if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+    return `${Math.floor(s / 3600)}h ago`;
+  }
+
+  function badgeClass(status) {
+    const map = { running: 'badge-running', pending: 'badge-pending', failed: 'badge-failed' };
+    return map[status] ?? 'badge-unknown';
+  }
+
+  function render(list) {
+    const running = list.filter(i => i.podStatus === 'running').length;
+    document.getElementById('stat-count').textContent = running;
+
+    const el = document.getElementById('content');
+
+    if (list.length === 0) {
+      el.innerHTML = `
+        <div class="empty">
+          <div class="empty-icon">⬡</div>
+          <div class="empty-title">// no instances</div>
+          <div class="empty-sub">Push a branch to provision automatically, or click <em>New instance</em> above.</div>
+        </div>`;
+      return;
+    }
+
+    const cards = list.map(inst => {
+      const bc   = badgeClass(inst.podStatus);
+      const conn = `redis://${inst.credentials.host}:${inst.credentials.port}`;
+      const ago  = timeAgo(inst.createdAt);
+      return `
+        <div class="instance-card">
+          <div>
+            <div class="card-top">
+              <span class="card-id">${esc(inst.id)}</span>
+              <span class="badge ${bc}">
+                <span class="badge-dot"></span>${inst.podStatus}
+              </span>
+              <span class="plan-tag">${esc(inst.planId ?? 'small')}</span>
+            </div>
+            <div class="card-creds">
+              <div class="cred-item">
+                <span class="cred-label">host</span>
+                <span class="cred-value" onclick="copyValue(this,'${esc(inst.credentials.host)}')">${esc(inst.credentials.host)}</span>
+              </div>
+              <div class="cred-item">
+                <span class="cred-label">port</span>
+                <span class="cred-value" onclick="copyValue(this,'${inst.credentials.port}')">${inst.credentials.port}</span>
+              </div>
+              <div class="cred-item">
+                <span class="cred-label">uri</span>
+                <span class="cred-value" onclick="copyValue(this,'${esc(conn)}')">${esc(conn)}</span>
+              </div>
+              ${ago ? `<span class="card-time">${ago}</span>` : ''}
+            </div>
+          </div>
+          <div>
+            <button class="btn-del" id="del-${esc(inst.id)}"
+                    onclick="confirmDelete('${esc(inst.id)}')">delete</button>
+          </div>
+        </div>`;
+    }).join('');
+
+    el.innerHTML = `
+      <div class="section-title">instances — ${list.length}</div>
+      <div class="instance-list">${cards}</div>`;
+  }
+
+  function esc(s) {
+    return String(s)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;').replace(/"/g,'&quot;')
+      .replace(/'/g,'&#39;');
+  }
+
+  /* ── Polling ─────────────────────────────────── */
+  async function poll() {
+    try {
+      const res = await fetch('/api/instances');
+      if (!res.ok) return;
+      instances = await res.json();
+      render(instances);
+    } catch { /* ignore */ }
+  }
+
+  function tickRefreshBar() {
+    const bar = document.getElementById('refresh-bar');
+    bar.classList.remove('running');
+    bar.style.transition = 'none';
+    bar.style.width = '0';
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      bar.classList.add('running');
+    }));
+  }
+
+  poll();
+  setInterval(() => { tickRefreshBar(); poll(); }, 3000);
+</script>
+</body>
+</html>
